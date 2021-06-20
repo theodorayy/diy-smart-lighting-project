@@ -253,6 +253,7 @@ String lightController(String state) {
   
   // light controller module
   if (isSunrise) {
+    Serial.println("Setting sunrise");
     if (state != "sunrise") {
       // turn on the lights      
       triggerFixtureOnOff(true);
@@ -262,13 +263,20 @@ String lightController(String state) {
       handleIR("33472575");
       handleIR("33472575");
       state = "sunrise";
+      lightDidTurnOn = true;
     }
   } else if (isSunset) {
 
     if (state != "sunset") {
+      Serial.println("Setting sunset");
       // evening light       
       handleIR("33464415");
       // increase colour temp
+      handleIR("33439935");
+      handleIR("33439935");
+      handleIR("33439935");
+      handleIR("33439935");
+      handleIR("33439935");
       handleIR("33439935");
       handleIR("33439935");
       handleIR("33439935");
@@ -279,12 +287,16 @@ String lightController(String state) {
       handleIR("33454215");
       handleIR("33454215");
       handleIR("33454215");
+      handleIR("33454215");
+      handleIR("33454215");
       state = "sunset";
+      lightDidTurnOn = true;
     }
     
   } else if (isSleep) {
 
     if (state != "sleep") {
+      Serial.println("Setting sleep");
       triggerFixtureOnOff(false);
       state = "sleep";
     }
@@ -294,8 +306,16 @@ String lightController(String state) {
 
 void triggerFixtureOnOff(bool didTriggerOn) {
 
+  
+  float lightOnCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.025);
+  float lightOffCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.2);
+  Serial.print("Light On Cut Off: ");
+  Serial.println(lightOnCutOff);
+  Serial.print("Light Off Cut Off: ");
+  Serial.println(lightOffCutOff);
+
   if (didTriggerOn) {
-    while (lightReading < 10) {
+    while (lightReading <= lightOnCutOff) {
       handleIR("33456255");
       delay(200);
       printLightReading();
@@ -304,7 +324,7 @@ void triggerFixtureOnOff(bool didTriggerOn) {
     lightDidTurnOn = true;
     
   } else {
-    while (lightReading > 30 and !didTriggerOn) {
+    while (lightReading > lightOffCutOff and !didTriggerOn) {
       handleIR("33456255");
       delay(200);
       printLightReading();
@@ -333,7 +353,7 @@ void initialiseLighting() {
   // turn off to confirm lighting is OFF and set lightDidTurnOn state to FALSE
   handleIR("33456255");
   lightDidTurnOn = false;
-  delay(1000);
+  delay(2000);
   ambientLightReading = analogRead(lightSensorPin) * 0.0976;
 
   Serial.print("Ambient light: ");
