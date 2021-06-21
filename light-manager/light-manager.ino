@@ -127,7 +127,25 @@ void handleWebIR() {
   handleRoot();
 }
 
-void handleIR(String command) {
+void handleIR(String wordCommand) {
+    if (wordCommand == "onOff") {
+      transmitIR("33456255");
+    } else if (wordCommand == "decreaseBrightness") {
+      transmitIR("33454215");      
+    } else if (wordCommand == "increaseBrightness") {
+      transmitIR("33441975");
+    } else if (wordCommand == "decreaseColourTemp") {
+      transmitIR("33472575");
+    } else if (wordCommand == "increaseColourTemp") {
+      transmitIR("33439935");
+    } else if (wordCommand == "changeColourTemp") {
+      transmitIR("33448095");
+    } else if (wordCommand == "eveningLight") {
+      transmitIR("33464415");
+    }
+}
+
+void transmitIR(String command) {
   uint32_t code;
   if (command == "33454215" || command == "33441975" || command == "33472575" || command == "33439935") {
     code = strtoul(command.c_str(), NULL, 10);
@@ -250,7 +268,7 @@ String lightController(String state) {
     isSleep = true;
   }
   
-  Serial.println(isSunrise ? "isSunrise" : isSunset ? "isSunset" : isSleep ? "isSleep" : "WTF IS WRONG WITH THE CODE");
+//  Serial.println(isSunrise ? "isSunrise" : isSunset ? "isSunset" : isSleep ? "isSleep" : "Something is wrong with the timing logic.");
   
   // light controller module
   if (isSunrise) {
@@ -258,38 +276,33 @@ String lightController(String state) {
       Serial.println("Setting sunrise");
       // turn on the lights      
       triggerFixtureOnOff(true);
-      // slow ramp up (evening lights)
-      handleIR("33464415");
-      // change colour temperature
-      handleIR("33472575");
-      handleIR("33472575");
+      // slow ramp up (evening light)
+      handleIR("eveningLight");
+      // decrease colour temperature (cooler)
+      for (int i = 0; i < 3; i++) {
+         handleIR("decreaseColourTemp");
+      }
       state = "sunrise";
       lightDidTurnOn = true;
+    } else {
+      if (currentHour == 10 && currentMinute == 10) {
+        handleIR("decreaseColourTemp");
+      }
     }
   } else if (isSunset) {
 
     if (state != "sunset") {
       Serial.println("Setting sunset");
       // evening light       
-      handleIR("33464415");
+      handleIR("eveningLight");
       // increase colour temp
-      handleIR("33439935");
-      handleIR("33439935");
-      handleIR("33439935");
-      handleIR("33439935");
-      handleIR("33439935");
-      handleIR("33439935");
-      handleIR("33439935");
-      handleIR("33439935");
+      for (int i = 0; i < 9; i++) {
+        handleIR("increaseColourTemp");
+      }
       // reduce brightness
-      handleIR("33454215");
-      handleIR("33454215");
-      handleIR("33454215");
-      handleIR("33454215");
-      handleIR("33454215");
-      handleIR("33454215");
-      handleIR("33454215");
-      handleIR("33454215");
+      for (int i = 0; i < 9; i++) {
+        handleIR("decreaseBrightness");
+      }
       state = "sunset";
       lightDidTurnOn = true;
     }
@@ -317,7 +330,7 @@ void triggerFixtureOnOff(bool didTriggerOn) {
 
   if (didTriggerOn) {
     while (lightReading <= lightOnCutOff) {
-      handleIR("33456255");
+      handleIR("onOff");
       delay(200);
       printLightReading();
     }
@@ -326,7 +339,7 @@ void triggerFixtureOnOff(bool didTriggerOn) {
     
   } else {
     while (lightReading > lightOffCutOff and !didTriggerOn) {
-      handleIR("33456255");
+      handleIR("onOff");
       delay(200);
       printLightReading();
     }
@@ -341,18 +354,19 @@ void triggerFixtureOnOff(bool didTriggerOn) {
 
 void initialiseLighting() {
   // MAX Light Initialisation
-  handleIR("33448095");
+  handleIR("eveningLight");
+  handleIR("changeColourTemp");
   delay(1000);
   ambientLightWithMaxLightReading = analogRead(lightSensorPin) * 0.0976;
-  handleIR("33456255");
+  handleIR("onOff");
   delay(1000);
-  // change to evening lights to initialise ON 
-  handleIR("33464415");
+  // change to evening light to initialise ON 
+  handleIR("eveningLight");
   delay(1000);
   ambientLightWithEveningLightReading = analogRead(lightSensorPin) * 0.0976;
   
   // turn off to confirm lighting is OFF and set lightDidTurnOn state to FALSE
-  handleIR("33456255");
+  handleIR("onOff");
   lightDidTurnOn = false;
   delay(2000);
   ambientLightReading = analogRead(lightSensorPin) * 0.0976;
