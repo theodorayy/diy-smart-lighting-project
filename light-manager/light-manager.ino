@@ -56,6 +56,8 @@ int pirValue;
 int timeDeltaSinceLightOn = 0;
 int maxSecondsBeforeLightOff = 10;
 int gracePeriod = 0;
+
+int definedGracePeriod = 1; // light ramp up timing
 // =====================================================
 
 // =====================================================
@@ -285,8 +287,13 @@ String lightController(String state) {
       state = "sunrise";
       lightDidTurnOn = true;
     } else {
-      if (currentHour == 10 && currentMinute == 10) {
-        handleIR("decreaseColourTemp");
+      // test brightness logic      
+      if (currentHour == 10 && currentMinute >= 10) {
+        if (lightReading < 55) {
+          handleIR("increaseBrightness");
+        } else if (lightReading > 65) {
+          handleIR("decreaseBrightness");
+        }
       }
     }
   } else if (isSunset) {
@@ -483,7 +490,7 @@ void loop(void) {
       Serial.print(timeDeltaSinceLightOn);
       Serial.print(" since the light has been turned on with no motion detected, turning off now...");
       triggerFixtureOnOff(false);
-      gracePeriod = 2;
+      gracePeriod = definedGracePeriod;
     }
   }
 
