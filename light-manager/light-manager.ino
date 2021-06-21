@@ -54,7 +54,8 @@ IRsend irsend(4);  // An IR LED is controlled by GPIO pin 4 (D2)
 int pirInputPin = D7;
 int pirValue;
 int timeDeltaSinceLightOn = 0;
-int maxSecondsBeforeLightOff = 20;
+int maxSecondsBeforeLightOff = 10;
+int gracePeriod = 0;
 // =====================================================
 
 // =====================================================
@@ -253,8 +254,8 @@ String lightController(String state) {
   
   // light controller module
   if (isSunrise) {
-    Serial.println("Setting sunrise");
     if (state != "sunrise") {
+      Serial.println("Setting sunrise");
       // turn on the lights      
       triggerFixtureOnOff(true);
       // slow ramp up (evening lights)
@@ -447,8 +448,10 @@ void loop(void) {
     Serial.print("Motion detected! Time Delta Since Lights On reset to: ");
     Serial.println(timeDeltaSinceLightOn);
     
-    if (!lightDidTurnOn) {
+    if (!lightDidTurnOn && gracePeriod == 0) {
       triggerFixtureOnOff(true);
+    } else if (!lightDidTurnOn && gracePeriod > 0) {
+      gracePeriod--;
     }
   } else {
     Serial.println("No motion detected");
@@ -466,6 +469,7 @@ void loop(void) {
       Serial.print(timeDeltaSinceLightOn);
       Serial.print(" since the light has been turned on with no motion detected, turning off now...");
       triggerFixtureOnOff(false);
+      gracePeriod = 2;
     }
   }
 
