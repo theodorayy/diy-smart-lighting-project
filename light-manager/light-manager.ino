@@ -102,69 +102,79 @@ void handleRoot() {
                 "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css\">" \
                 "<title>ER Light Manager</title></head>" \
                 "<body>" \
-                  "<h1>Hello from the Light Manager backend!</h1>" \
-                  "<p><a class=\"button is-primary is-light\" href=\"lm?code=33456255\">Turn on/off</a></p>" \
-                  "<p><a href=\"lm?code=33454215\">Reduce brightness</a></p>" \
-                  "<p><a href=\"lm?code=33441975\">Increase brightness</a></p>" \
-                  "<p><a href=\"lm?code=33472575\">Decrease colour temperature</a></p>" \
-                  "<p><a href=\"lm?code=33439935\">Increase colour temperature</a></p>" \
-                  "<p><a href=\"lm?code=33448095\">Change colour temperature</a></p>" \
-                  "<p><a href=\"lm?code=33464415\">Evening light</a></p>" \
-                  "<p><a href=\"lm?code=33446055\">Button 12 (last button)</a></p>" \
-                  "<a href=\"lm?code=33446055\">Button 12 (last button)</a></p>" \
+                  "<section class=\"hero is-medium is-link\">" \
+                    "<div class=\"hero-body\"><p class=\"title\">" \
+                      "Hello." \
+                    "</p>" \
+                    "<p class=\"subtitle\">" \
+                      "Welcome to the Light Manager backend." \
+                    "</p>" \
+                    "</div>" \
+                   "</section>" \
+                   "<div class=\"columns my-5\">" \
+                    "<div class=\"column is-6 is-offset-3 buttons\">" \
+                      "<a class=\"button is-primary\" href=\"lm?code=33456255\">Turn on/off</a>" \
+                      "<a class=\"button is-light\" href=\"lm?code=33454215\">Reduce brightness</a>" \
+                      "<a class=\"button is-dark\" href=\"lm?code=33441975\">Increase brightness</a>" \
+                      "<a class=\"button is-info is-light\" href=\"lm?code=33472575\">Decrease colour temperature</a>" \
+                      "<a class=\"button is-danger is-light\" href=\"lm?code=33439935\">Increase colour temperature</a>" \
+                      "<a class=\"button is-success is-light\" href=\"lm?code=33448095\">Change colour temperature</a>" \
+                      "<a class=\"button is-warning\" href=\"lm?code=33464415\">Evening light</a>" \
+                    "</div>" \
+                   "</div>" \
                 "</body>" \
               "</html>");
 }
 void handleWebIR() {
-  for (uint8_t i = 0; i < server.args(); i++) {
-    if (server.argName(i) == "code") {
-      transmitIR(server.arg(i));
+    for (uint8_t i = 0; i < server.args(); i++) {
+        if (server.argName(i) == "code") {
+            transmitIR(server.arg(i));
+        }
     }
-  }
-  handleRoot();
+    handleRoot();
+}
+
+void handleNotFound() {
+    String message = "File Not Found\n\n";
+    message += "URI: ";
+    message += server.uri();
+    message += "\nMethod: ";
+    message += (server.method() == HTTP_GET)?"GET":"POST";
+    message += "\nArguments: ";
+    message += server.args();
+    message += "\n";
+    for (uint8_t i = 0; i < server.args(); i++)
+        message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
+    server.send(404, "text/plain", message);
 }
 
 void handleIR(String wordCommand) {
     if (wordCommand == "onOff") {
-      transmitIR("33456255");
+        transmitIR("33456255");
     } else if (wordCommand == "decreaseBrightness") {
-      transmitIR("33454215");
+        transmitIR("33454215");
     } else if (wordCommand == "increaseBrightness") {
-      transmitIR("33441975");
+        transmitIR("33441975");
     } else if (wordCommand == "decreaseColourTemp") {
-      transmitIR("33472575");
+        transmitIR("33472575");
     } else if (wordCommand == "increaseColourTemp") {
-      transmitIR("33439935");
+        transmitIR("33439935");
     } else if (wordCommand == "changeColourTemp") {
-      transmitIR("33448095");
+        transmitIR("33448095");
     } else if (wordCommand == "eveningLight") {
-      transmitIR("33464415");
+        transmitIR("33464415");
     }
 }
 
 void transmitIR(String command) {
-  uint32_t code;
-  if (command == "33454215" || command == "33441975" || command == "33472575" || command == "33439935") {
-    code = strtoul(command.c_str(), NULL, 10);
-    irsend.sendNEC(code, 32, 2); // with repeat
-  } else {
-    code = strtoul(command.c_str(), NULL, 10);
-    irsend.sendNEC(code, 32);
-  }
-}
-
-void handleNotFound() {
-  String message = "File Not Found\n\n";
-  message += "URI: ";
-  message += server.uri();
-  message += "\nMethod: ";
-  message += (server.method() == HTTP_GET)?"GET":"POST";
-  message += "\nArguments: ";
-  message += server.args();
-  message += "\n";
-  for (uint8_t i = 0; i < server.args(); i++)
-    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
-  server.send(404, "text/plain", message);
+    uint32_t code;
+    if (command == "33454215" || command == "33441975" || command == "33472575" || command == "33439935") {
+        code = strtoul(command.c_str(), NULL, 10);
+        irsend.sendNEC(code, 32, 2); // with repeat
+    } else {
+        code = strtoul(command.c_str(), NULL, 10);
+        irsend.sendNEC(code, 32);
+    }
 }
 
 //void getSolarTimesData() {
@@ -223,311 +233,319 @@ void handleNotFound() {
 //    }
 //}
 
-String lightController(String state) {
-  // get current time
-  timeClient.update();
-  int currentHour = timeClient.getHours();
-  int currentMinute = timeClient.getMinutes();
-  
+String runLightController(String state) {
+    // get current time
+    timeClient.update();
+    int currentHour = timeClient.getHours();
+    int currentMinute = timeClient.getMinutes();
+    
 
-  Serial.print("Hour: ");
-  Serial.println(currentHour);
-  Serial.print("Minutes: ");
-  Serial.println(currentMinute);
-  // get sunrise & sunset times of Singapore from API
-//  getSolarTimesData();
+    Serial.print("Hour: ");
+    Serial.println(currentHour);
+    Serial.print("Minutes: ");
+    Serial.println(currentMinute);
+    // get sunrise & sunset times of Singapore from API
+    //  getSolarTimesData();
 
-  // sunrise/sunset/sleep config
-  int sunriseHour = 6;
-  int sunriseMinute = 58;
-  
-  int sunsetHour = 19;
-  int sunsetMinute = 10;
+    // sunrise/sunset/sleep config
+    int sunriseHour = 6;
+    int sunriseMinute = 58;
+    
+    int sunsetHour = 19;
+    int sunsetMinute = 10;
 
-  int sleepHour = 23;
-  int sleepMinute = 0;
+    int sleepHour = 23;
+    int sleepMinute = 0;
 
-  bool isSunrise;
-  bool isSunset;
-  bool isSleep;
+    bool isSunrise;
+    bool isSunset;
+    bool isSleep;
 
-  if ((currentHour == sunriseHour && currentMinute >= sunriseMinute) || (currentHour == sunsetHour && currentMinute < sunsetMinute) || (currentHour > sunriseHour && currentHour < sunsetHour)) {
-    isSunrise = true;
-    isSunset = false;
-    isSleep = false;
-  } else if ((currentHour == sunsetHour && currentMinute >= sunsetMinute) || (currentHour == sleepHour && currentMinute < sleepMinute) || (currentHour > sunsetHour && currentHour < sleepHour)) {
-      isSunrise = false;
-      isSunset = true;
-      isSleep = false;
-  } else {
-    isSunrise = false;
-    isSunset = false;
-    isSleep = true;
-  }
-  
-//  Serial.println(isSunrise ? "isSunrise" : isSunset ? "isSunset" : isSleep ? "isSleep" : "Something is wrong with the timing logic.");
-  
-  // light controller module
-  if (isSunrise) {
-    if (state != "sunrise") {
-      Serial.println("Setting sunrise");
-      // turn on the lights      
-      triggerFixtureOnOff(true);
-      // slow ramp up (evening light)
-      handleIR("eveningLight");
-      // decrease colour temperature (cooler)
-      for (int i = 0; i < 3; i++) {
-         handleIR("decreaseColourTemp");
-      }
-      state = "sunrise";
-      lightDidTurnOn = true;
+    if ((currentHour == sunriseHour && currentMinute >= sunriseMinute) || (currentHour == sunsetHour && currentMinute < sunsetMinute) || (currentHour > sunriseHour && currentHour < sunsetHour)) {
+        isSunrise = true;
+        isSunset = false;
+        isSleep = false;
+    } else if ((currentHour == sunsetHour && currentMinute >= sunsetMinute) || (currentHour == sleepHour && currentMinute < sleepMinute) || (currentHour > sunsetHour && currentHour < sleepHour)) {
+        isSunrise = false;
+        isSunset = true;
+        isSleep = false;
     } else {
-      // test brightness logic      
-      if (currentHour >= 10 && currentMinute >= 10) {
-        float difference = ambientLightWithMaxLightReading - ambientLightWithEveningLightReading;
-        float lowerBoundBrightness = ambientLightWithEveningLightReading + (difference * 0.3);
-        float upperBoundBrightness = ambientLightWithEveningLightReading + (difference * 0.4);
-
-        Serial.print("lower bound:");
-        Serial.println(lowerBoundBrightness);
-
-        Serial.print("upper bound: ");
-        Serial.println(upperBoundBrightness);
-        
-        if (lightReading < lowerBoundBrightness) {
-          handleIR("increaseBrightness");
-        } else if (lightReading > upperBoundBrightness) {
-          handleIR("decreaseBrightness");
-        }
-      }
-    }
-  } else if (isSunset) {
-
-    if (state != "sunset") {
-      Serial.println("Setting sunset");
-      // evening light       
-      handleIR("eveningLight");
-      // increase colour temp
-      for (int i = 0; i < 9; i++) {
-        handleIR("increaseColourTemp");
-      }
-      // reduce brightness
-      for (int i = 0; i < 9; i++) {
-        handleIR("decreaseBrightness");
-      }
-      state = "sunset";
-      lightDidTurnOn = true;
+        isSunrise = false;
+        isSunset = false;
+        isSleep = true;
     }
     
-  } else if (isSleep) {
+    //  Serial.println(isSunrise ? "isSunrise" : isSunset ? "isSunset" : isSleep ? "isSleep" : "Something is wrong with the timing logic.");
+    
+    // light controller module
+    if (isSunrise) {
+        if (state != "sunrise") {
+        Serial.println("Setting sunrise");
+        // turn on the lights      
+        triggerFixtureOnOff(true);
+        // slow ramp up (evening light)
+        handleIR("eveningLight");
+        // decrease colour temperature (cooler)
+        for (int i = 0; i < 3; i++) {
+            handleIR("decreaseColourTemp");
+        }
+        state = "sunrise";
+        lightDidTurnOn = true;
+        } else {
+        // test brightness logic      
+        if (currentHour >= 10 && currentMinute >= 10) {
+            float difference = ambientLightWithMaxLightReading - ambientLightWithEveningLightReading;
+            float lowerBoundBrightness = ambientLightWithEveningLightReading + (difference * 0.3);
+            float upperBoundBrightness = ambientLightWithEveningLightReading + (difference * 0.4);
 
-    if (state != "sleep") {
-      Serial.println("Setting sleep");
-      triggerFixtureOnOff(false);
-      state = "sleep";
+            Serial.print("lower bound:");
+            Serial.println(lowerBoundBrightness);
+
+            Serial.print("upper bound: ");
+            Serial.println(upperBoundBrightness);
+            
+            if (lightReading < lowerBoundBrightness) {
+            handleIR("increaseBrightness");
+            } else if (lightReading > upperBoundBrightness) {
+            handleIR("decreaseBrightness");
+            }
+        }
+        }
+    } else if (isSunset) {
+
+        if (state != "sunset") {
+        Serial.println("Setting sunset");
+        // evening light       
+        handleIR("eveningLight");
+        // increase colour temp
+        for (int i = 0; i < 9; i++) {
+            handleIR("increaseColourTemp");
+        }
+        // reduce brightness
+        for (int i = 0; i < 9; i++) {
+            handleIR("decreaseBrightness");
+        }
+        state = "sunset";
+        lightDidTurnOn = true;
+        }
+        
+    } else if (isSleep) {
+
+        if (state != "sleep") {
+        Serial.println("Setting sleep");
+        triggerFixtureOnOff(false);
+        state = "sleep";
+        }
     }
-  }
-  return state;
+    return state;
 }
 
 void triggerFixtureOnOff(bool didTriggerOn) {
+    float lightOnCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.015);
+    float lightOffCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.2);
+    Serial.print("Light On Cut Off: ");
+    Serial.println(lightOnCutOff);
+    Serial.print("Light Off Cut Off: ");
+    Serial.println(lightOffCutOff);
 
-  
-  float lightOnCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.015);
-  float lightOffCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.2);
-  Serial.print("Light On Cut Off: ");
-  Serial.println(lightOnCutOff);
-  Serial.print("Light Off Cut Off: ");
-  Serial.println(lightOffCutOff);
-
-  if (didTriggerOn) {
-    while (lightReading <= lightOnCutOff) {
-      handleIR("onOff");
-      delay(200);
-      printLightReading();
+    if (didTriggerOn) {
+        while (lightReading <= lightOnCutOff) {
+            handleIR("onOff");
+            delay(200);
+            runLightReading();
+        }
+        
+        lightDidTurnOn = true;
+        
+    } else {
+        while (lightReading > lightOffCutOff and !didTriggerOn) {
+            handleIR("onOff");
+            delay(200);
+            runLightReading();
+        }
+        
+        lightDidTurnOn = false;
+        timeDeltaSinceLightOn = 0;
     }
-    
-    lightDidTurnOn = true;
-    
-  } else {
-    while (lightReading > lightOffCutOff and !didTriggerOn) {
-      handleIR("onOff");
-      delay(200);
-      printLightReading();
-    }
-    
-    lightDidTurnOn = false;
-    timeDeltaSinceLightOn = 0;
-  }
 
-  Serial.print("Light fixture is turned on: ");
-  Serial.println(lightDidTurnOn ? "Yes" : "No");
+    Serial.print("Light fixture is turned on: ");
+    Serial.println(lightDidTurnOn ? "Yes" : "No");
 }
 
 void initialiseLighting() {
-  // MAX Light Initialisation
-  handleIR("eveningLight");
-  handleIR("onOff");
-  delay(500);
-  handleIR("changeColourTemp");
-  delay(1000);
-  ambientLightWithMaxLightReading = analogRead(lightSensorPin) * 0.0976;
-  handleIR("onOff");
-  delay(1000);
-  // change to evening light to initialise ON 
-  handleIR("eveningLight");
-  delay(1000);
-  ambientLightWithEveningLightReading = analogRead(lightSensorPin) * 0.0976;
-  
-  // turn off to confirm lighting is OFF and set lightDidTurnOn state to FALSE
-  handleIR("onOff");
-  lightDidTurnOn = false;
-  delay(2000);
-  ambientLightReading = analogRead(lightSensorPin) * 0.0976;
+    Serial.println("Setting up your light fixture...");
 
-  Serial.print("Ambient light: ");
-  Serial.println(ambientLightReading);
+    // MAX Light Initialisation
+    handleIR("eveningLight");
+    handleIR("onOff");
+    delay(500);
+    handleIR("changeColourTemp");
+    delay(1000);
+    ambientLightWithMaxLightReading = analogRead(lightSensorPin) * 0.0976;
+    handleIR("onOff");
+    delay(1000);
 
-  Serial.print("Ambient light with evening light: ");
-  Serial.println(ambientLightWithEveningLightReading);
+    // change to evening light to initialise ON 
+    handleIR("eveningLight");
+    delay(1000);
+    ambientLightWithEveningLightReading = analogRead(lightSensorPin) * 0.0976;
+    
+    // turn off to confirm lighting is OFF and set lightDidTurnOn state to FALSE
+    handleIR("onOff");
+    lightDidTurnOn = false;
+    delay(1000);
+    ambientLightReading = analogRead(lightSensorPin) * 0.0976;
 
-  Serial.print("Ambient light with full brightness: ");
-  Serial.println(ambientLightWithMaxLightReading);
-  Serial.println("Light fixture is initialised");
+    Serial.print("Ambient light: ");
+    Serial.println(ambientLightReading);
+
+    Serial.print("Ambient light with evening light: ");
+    Serial.println(ambientLightWithEveningLightReading);
+
+    Serial.print("Ambient light with full brightness: ");
+    Serial.println(ambientLightWithMaxLightReading);
+    Serial.println("Light fixture is set up!");
+}
+
+void runLightReading() {
+    lightReading = analogRead(lightSensorPin) * 0.0976; //Read light level
+    Serial.print("Light reading is: ");
+    Serial.print(lightReading);
+    Serial.println(" %");
+}
+
+void runMotionDetector() {
+    // Motion detection readings
+    pirValue = digitalRead(pirInputPin);
+    if (pirValue == HIGH) {
+        timeDeltaSinceLightOn = 0;
+        Serial.print("Motion detected! Time Delta Since Lights On reset to: ");
+        Serial.println(timeDeltaSinceLightOn);
+        
+        if (!lightDidTurnOn && gracePeriod == 0) {
+            triggerFixtureOnOff(true);
+        } else if (!lightDidTurnOn && gracePeriod > 0) {
+            gracePeriod--;
+        }
+    } else {
+        Serial.println("No motion detected");
+        
+        //  counter if no motion detected
+        if (lightDidTurnOn) {
+            timeDeltaSinceLightOn += 1;
+            
+            Serial.print("Motion not detected! Time Delta Since Lights On: ");
+            Serial.println(timeDeltaSinceLightOn);
+        }
+        
+        if (lightDidTurnOn && ( timeDeltaSinceLightOn >= ( maxSecondsBeforeLightOff * (cycleCount/1000) ) )) {
+            Serial.print("It's been ");
+            Serial.print(timeDeltaSinceLightOn);
+            Serial.print(" since the light has been turned on with no motion detected, turning off now...");
+            triggerFixtureOnOff(false);
+            gracePeriod = definedGracePeriod;
+        }
+    }
+}
+
+void runReadIR() {
+    // IR readings
+    if (irrecv.decode(&results)) {
+        if (results.value >> 32)  // print() & println() can't handle printing long longs. (uint64_t)
+            Serial.print((uint32_t) (results.value >> 32), HEX);  // print the first part of the message
+        Serial.println((uint32_t) (results.value & 0xFFFFFFFF), HEX); // print the second part of the message
+        irrecv.resume();  // Receive the next value
+    }
 }
 
 void setup(void) {
   
-  irsend.begin();
-  irrecv.enableIRIn();
+    irsend.begin();
+    irrecv.enableIRIn();
 
-  Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  Serial.println("");
+    Serial.begin(115200);
+    WiFi.begin(ssid, password);
+    Serial.println("");
 
-  // Wait for connection
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.print("Connected to ");
-  Serial.println(ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
-
-  if (mdns.begin("esp8266", WiFi.localIP())) {
-    Serial.println("MDNS responder started");
-  }
-
-  server.on("/", handleRoot);
-  server.on("/lm", handleWebIR);
-
-  server.on("/inline", [](){
-    server.send(200, "text/plain", "this works as well");
-  });
-
-  server.onNotFound(handleNotFound);
-
-  server.begin();
-  Serial.println("HTTP server started");
-  
-  // Initialize a NTPClient to get time
-  timeClient.begin();
-  // Set offset time in seconds to adjust for your timezone, for example:
-  // GMT +1 = 3600
-  // GMT +8 = 28800
-  // GMT -1 = -3600
-  // GMT 0 = 0
-  timeClient.setTimeOffset(28800);
-
-  // Sensor initialisation
-  pinMode(lightSensorPin, INPUT);
-  pinMode(pirInputPin, INPUT);
-  Serial.println("Initialising motion sensor...");
-
-  int pirInitialisingSeconds = 10;
-  for (int i = 0; i <= pirInitialisingSeconds; i++) {
-    Serial.print("Duration remaining: ");
-    Serial.println(pirInitialisingSeconds-i);
-    delay(1000);  // let the PIR initialise first
-  }
-  Serial.println("Motion sensor initialised!");
-
-  initialiseLighting();
-}
-
-void printLightReading() {
-  lightReading = analogRead(lightSensorPin) * 0.0976; //Read light level
-  Serial.print("Light reading is: ");
-  Serial.print(lightReading);
-  Serial.println(" %");
-}
-
-void runMotionDetector() {
-  // Motion detection readings
-  pirValue = digitalRead(pirInputPin);
-  if (pirValue == HIGH) {
-    timeDeltaSinceLightOn = 0;
-    Serial.print("Motion detected! Time Delta Since Lights On reset to: ");
-    Serial.println(timeDeltaSinceLightOn);
-    
-    if (!lightDidTurnOn && gracePeriod == 0) {
-      triggerFixtureOnOff(true);
-    } else if (!lightDidTurnOn && gracePeriod > 0) {
-      gracePeriod--;
+    // Wait for connection
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
     }
-  } else {
-    Serial.println("No motion detected");
-    
-    //  counter if no motion detected
-    if (lightDidTurnOn) {
-      timeDeltaSinceLightOn += 1;
-      
-      Serial.print("Motion not detected! Time Delta Since Lights On: ");
-      Serial.println(timeDeltaSinceLightOn);
+    Serial.println("");
+    Serial.print("Connected to ");
+    Serial.println(ssid);
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+
+    if (mdns.begin("esp8266", WiFi.localIP())) {
+        Serial.println("MDNS responder started");
     }
+
+    server.on("/", handleRoot);
+    server.on("/lm", handleWebIR);
+
+    server.on("/inline", [](){
+        server.send(200, "text/plain", "this works as well");
+    });
+
+    server.onNotFound(handleNotFound);
+
+    server.begin();
+    Serial.println("HTTP server started");
     
-    if (lightDidTurnOn && ( timeDeltaSinceLightOn >= ( maxSecondsBeforeLightOff * (cycleCount/1000) ) )) {
-      Serial.print("It's been ");
-      Serial.print(timeDeltaSinceLightOn);
-      Serial.print(" since the light has been turned on with no motion detected, turning off now...");
-      triggerFixtureOnOff(false);
-      gracePeriod = definedGracePeriod;
+    // Initialize a NTPClient to get time
+    timeClient.begin();
+    // Set offset time in seconds to adjust for your timezone, for example:
+    // GMT +1 = 3600
+    // GMT +8 = 28800
+    // GMT -1 = -3600
+    // GMT 0 = 0
+    timeClient.setTimeOffset(28800);
+
+    // Sensor initialisation
+    pinMode(lightSensorPin, INPUT);
+    pinMode(pirInputPin, INPUT);
+    Serial.println("Initialising motion sensor...");
+
+    int pirInitialisingSeconds = 10;
+    for (int i = 0; i <= pirInitialisingSeconds; i++) {
+        Serial.print("Duration remaining: ");
+        Serial.println(pirInitialisingSeconds-i);
+        delay(1000);  // let the PIR initialise first
     }
-  }
+    Serial.println("Motion sensor initialised!");
+    
+    // initialise lights
+    initialiseLighting();
 }
 
 void loop(void) {
-  Serial.println("==========START CYCLE==========");
-  // Light readings
-  printLightReading();
+    Serial.println("==========START CYCLE==========");
+    
+    // Light readings
+    runLightReading();
 
-  if (lightReading < 0.5 && lightDidTurnOn) {
-      triggerFixtureOnOff(true);
-  }
+    //  if (lightReading < 0.5 && lightDidTurnOn) {
+    //      triggerFixtureOnOff(true);
+    //  }
+    
+    // run motion detector service
+    runMotionDetector();
 
-  runMotionDetector();
+    // runReadIR();
 
-  // IR readings
-//  if (irrecv.decode(&results)) {
-//    if (results.value >> 32)  // print() & println() can't handle printing long longs. (uint64_t)
-//      Serial.print((uint32_t) (results.value >> 32), HEX);  // print the first part of the message
-//    Serial.println((uint32_t) (results.value & 0xFFFFFFFF), HEX); // print the second part of the message
-//    irrecv.resume();  // Receive the next value
-//  }
+    // Web server
+    server.handleClient();
 
-  // Web server
-  server.handleClient();
+    // Light Manager module
+    state = runLightController(state);
+    Serial.print("Current state: ");
+    Serial.println(state);
+    
+    // Take a chill pill
+    delay(cycleCount);
 
-  // Light Manager module
-  state = lightController(state);
-  Serial.print("Current state: ");
-  Serial.println(state);
-  
-  // Take a chill pill
-  delay(cycleCount);
-
-  Serial.println("==========CYCLE RESTARTS==========");
-  Serial.println("");
+    Serial.println("==========CYCLE RESTARTS==========");
+    Serial.println("");
 }
