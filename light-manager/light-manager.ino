@@ -54,7 +54,7 @@ IRsend irsend(4);  // An IR LED is controlled by GPIO pin 4 (D2)
 int pirInputPin = D7;
 int pirValue;
 int timeDeltaSinceLightOn = 0;
-int maxSecondsBeforeLightOff = 10;
+int maxSecondsBeforeLightOff = 30;
 int gracePeriod = 0;
 
 int definedGracePeriod = 1; // light ramp up timing
@@ -96,34 +96,29 @@ bool lightDidTurnOn = false;
 void handleRoot() {
   server.send(200, "text/html",
               "<html>" \
-                "<head><title>ESP8266 Demo</title></head>" \
+                "<head>" \
+                "<meta charset=\"utf-8\">" \
+                "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" \
+                "<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/bulma@0.9.3/css/bulma.min.css\">" \
+                "<title>ER Light Manager</title></head>" \
                 "<body>" \
-                  "<h1>Hello from ESP8266, you can send NEC encoded IR" \
-                      "signals from here!</h1>" \
-                  "<p><a href=\"ir?code=33456255\">Turn on/off</a></p>" \
-                  "<p><a href=\"ir?code=33454215\">Reduce brightness</a></p>" \
-                  "<p><a href=\"ir?code=33441975\">Increase brightness</a></p>" \
-                  "<p><a href=\"ir?code=33472575\">Decrease colour temperature</a></p>" \
-                  "<p><a href=\"ir?code=33439935\">Increase colour temperature</a></p>" \
-                  "<p><a href=\"ir?code=33448095\">Change colour temperature</a></p>" \
-                  "<p><a href=\"ir?code=33464415\">Evening light</a></p>" \
-                  "<p><a href=\"ir?code=33446055\">Button 12 (last button)</a></p>" \
-                  "<input><a href=\"ir?code=33446055\">Button 12 (last button)</a></p>" \
+                  "<h1>Hello from the Light Manager backend!</h1>" \
+                  "<p><a class=\"button is-primary is-light\" href=\"lm?code=33456255\">Turn on/off</a></p>" \
+                  "<p><a href=\"lm?code=33454215\">Reduce brightness</a></p>" \
+                  "<p><a href=\"lm?code=33441975\">Increase brightness</a></p>" \
+                  "<p><a href=\"lm?code=33472575\">Decrease colour temperature</a></p>" \
+                  "<p><a href=\"lm?code=33439935\">Increase colour temperature</a></p>" \
+                  "<p><a href=\"lm?code=33448095\">Change colour temperature</a></p>" \
+                  "<p><a href=\"lm?code=33464415\">Evening light</a></p>" \
+                  "<p><a href=\"lm?code=33446055\">Button 12 (last button)</a></p>" \
+                  "<a href=\"lm?code=33446055\">Button 12 (last button)</a></p>" \
                 "</body>" \
               "</html>");
 }
 void handleWebIR() {
   for (uint8_t i = 0; i < server.args(); i++) {
     if (server.argName(i) == "code") {
-      uint32_t code;
-      if (server.arg(i) == "33454215" || server.arg(i) == "33441975" || server.arg(i) == "33472575" || server.arg(i) == "33439935") {
-        code = strtoul(server.arg(i).c_str(), NULL, 10);
-        
-        irsend.sendNEC(code, 32, 2); // with repeat
-      } else {
-        code = strtoul(server.arg(i).c_str(), NULL, 10);
-        irsend.sendNEC(code, 32);
-      }
+      transmitIR(server.arg(i));
     }
   }
   handleRoot();
@@ -133,7 +128,7 @@ void handleIR(String wordCommand) {
     if (wordCommand == "onOff") {
       transmitIR("33456255");
     } else if (wordCommand == "decreaseBrightness") {
-      transmitIR("33454215");      
+      transmitIR("33454215");
     } else if (wordCommand == "increaseBrightness") {
       transmitIR("33441975");
     } else if (wordCommand == "decreaseColourTemp") {
@@ -288,10 +283,20 @@ String lightController(String state) {
       lightDidTurnOn = true;
     } else {
       // test brightness logic      
-      if (currentHour == 10 && currentMinute >= 10) {
-        if (lightReading < 55) {
+      if (currentHour >= 10 && currentMinute >= 10) {
+        float difference = ambientLightWithMaxLightReading - ambientLightWithEveningLightReading;
+        float lowerBoundBrightness = ambientLightWithEveningLightReading + (difference * 0.3);
+        float upperBoundBrightness = ambientLightWithEveningLightReading + (difference * 0.4);
+
+        Serial.print("lower bound:");
+        Serial.println(lowerBoundBrightness);
+
+        Serial.print("upper bound: ");
+        Serial.println(upperBoundBrightness);
+        
+        if (lightReading < lowerBoundBrightness) {
           handleIR("increaseBrightness");
-        } else if (lightReading > 65) {
+        } else if (lightReading > upperBoundBrightness) {
           handleIR("decreaseBrightness");
         }
       }
@@ -328,7 +333,7 @@ String lightController(String state) {
 void triggerFixtureOnOff(bool didTriggerOn) {
 
   
-  float lightOnCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.025);
+  float lightOnCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.015);
   float lightOffCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.2);
   Serial.print("Light On Cut Off: ");
   Serial.println(lightOnCutOff);
@@ -362,6 +367,8 @@ void triggerFixtureOnOff(bool didTriggerOn) {
 void initialiseLighting() {
   // MAX Light Initialisation
   handleIR("eveningLight");
+  handleIR("onOff");
+  delay(500);
   handleIR("changeColourTemp");
   delay(1000);
   ambientLightWithMaxLightReading = analogRead(lightSensorPin) * 0.0976;
@@ -414,7 +421,7 @@ void setup(void) {
   }
 
   server.on("/", handleRoot);
-  server.on("/ir", handleWebIR);
+  server.on("/lm", handleWebIR);
 
   server.on("/inline", [](){
     server.send(200, "text/plain", "this works as well");
@@ -457,11 +464,7 @@ void printLightReading() {
   Serial.println(" %");
 }
 
-void loop(void) {
-  Serial.println("==========START CYCLE==========");
-  // Light readings
-  printLightReading();
-
+void runMotionDetector() {
   // Motion detection readings
   pirValue = digitalRead(pirInputPin);
   if (pirValue == HIGH) {
@@ -493,6 +496,18 @@ void loop(void) {
       gracePeriod = definedGracePeriod;
     }
   }
+}
+
+void loop(void) {
+  Serial.println("==========START CYCLE==========");
+  // Light readings
+  printLightReading();
+
+  if (lightReading < 0.5 && lightDidTurnOn) {
+      triggerFixtureOnOff(true);
+  }
+
+  runMotionDetector();
 
   // IR readings
 //  if (irrecv.decode(&results)) {
