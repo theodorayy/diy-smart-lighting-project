@@ -30,7 +30,11 @@
 
 // =====================================================
 // Setup
-int cycleCount = 1000;
+int cycleCount = 1; // Loop delay
+// Helps to calibrate timers to cycle count
+float secondsCalibrator = 0;
+bool isManualMode = false;
+float acceptableWattage = 24.0; // This is the maximum wattage you allow the automatic settings to fall back to (in Watts)
 // =====================================================
 
 
@@ -54,7 +58,7 @@ IRsend irsend(4);  // An IR LED is controlled by GPIO pin 4 (D2)
 int pirInputPin = D7;
 int pirValue;
 int timeDeltaSinceLightOn = 0;
-int maxSecondsBeforeLightOff = 30;
+int maxSecondsBeforeLightOff = 20;
 int gracePeriod = 0;
 
 int definedGracePeriod = 1; // light ramp up timing
@@ -94,8 +98,30 @@ bool lightDidTurnOn = false;
 // =====================================================
 
 void handleRoot() {
-  server.send(200, "text/html",
-              "<html>" \
+    runLightReading();
+    String lightTextColour;
+    String lightText;
+    String manualModeTextColour;
+    String manualText;
+
+
+    if (lightDidTurnOn) {
+        lightTextColour = "has-text-success";
+        lightText = "On";
+    } else {
+        lightTextColour = "has-text-danger";
+        lightText = "Off";
+    }
+
+    if (isManualMode) {
+        manualModeTextColour = "has-text-danger";
+        manualText = "No";
+    } else {
+        manualModeTextColour = "has-text-success";
+        manualText = "Yes";
+    }
+
+    String html = "<html>" \
                 "<head>" \
                 "<meta charset=\"utf-8\">" \
                 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" \
@@ -111,27 +137,76 @@ void handleRoot() {
                     "</p>" \
                     "</div>" \
                    "</section>" \
+                   "<nav class=\"level my-5\">"
+                        "<div class=\"level-item has-text-centered\">"
+                            "<div>"
+                                "<p class=\"heading\">Current Light Level</p>"
+                                "<p class=\"title\">" + String(lightReading) + "</p>"
+                            "</div>"
+                        "</div>"
+                        "<div class=\"level-item has-text-centered\">"
+                            "<div>"
+                                "<p class=\"heading\">Light Fixture</p>"
+                                "<p class=\"title " + lightTextColour + "\">" + lightText + "</p>"
+                            "</div>"
+                        "</div>"
+                        "<div class=\"level-item has-text-centered\">"
+                            "<div>"
+                                "<p class=\"heading\">Auto Mode?</p>"
+                                "<p class=\"title " + manualModeTextColour + "\">" + manualText  + "</p>"
+                            "</div>"
+                        "</div>"
+                        "<div class=\"level-item has-text-centered\">"
+                            "<div>"
+                                "<p class=\"heading\">Ambient Reading</p>"
+                                "<p class=\"title\">" + String(ambientLightReading) + "</p>"
+                            "</div>"
+                        "</div>"
+                        "<div class=\"level-item has-text-centered\">"
+                            "<div>"
+                                "<a class=\"button is-gray is-light\" href=\"/\">Refresh</a>" \
+                            "</div>"
+                        "</div>"
+                    "</nav>"
                    "<div class=\"columns my-5\">" \
                     "<div class=\"column is-6 is-offset-3 buttons\">" \
-                      "<a class=\"button is-primary\" href=\"lm?code=33456255\">Turn on/off</a>" \
+                      "<a class=\"button is-primary\" href=\"lm?fixtureOnOff=true\">Turn on/off</a>" \
+                      "<a class=\"button is-info\" href=\"lm?auto=true\">Run Auto Mode</a>"\
                       "<a class=\"button is-light\" href=\"lm?code=33454215\">Reduce brightness</a>" \
                       "<a class=\"button is-dark\" href=\"lm?code=33441975\">Increase brightness</a>" \
                       "<a class=\"button is-info is-light\" href=\"lm?code=33472575\">Decrease colour temperature</a>" \
                       "<a class=\"button is-danger is-light\" href=\"lm?code=33439935\">Increase colour temperature</a>" \
                       "<a class=\"button is-success is-light\" href=\"lm?code=33448095\">Change colour temperature</a>" \
-                      "<a class=\"button is-warning\" href=\"lm?code=33464415\">Evening light</a>" \
+                      "<a class=\"button is-warning\" href=\"lm?code=33464415\">Neutral colour</a><br><br><br>" \
+                      "<a class=\"button is-danger\" href=\"lm?reset=true\">Reset</a>"\
                     "</div>" \
                    "</div>" \
                 "</body>" \
-              "</html>");
+              "</html>";
+
+    server.send(200, "text/html", html);
 }
-void handleWebIR() {
+void handleGUICommands() {
+    runLightReading(); 
     for (uint8_t i = 0; i < server.args(); i++) {
         if (server.argName(i) == "code") {
             transmitIR(server.arg(i));
+            isManualMode = true;
+            state = "unset";
+            Serial.println("Set to manual mode.");
+        } else if (server.argName(i) == "auto") {
+            isManualMode = false;
+            Serial.println("Set to auto mode.");
+        } else if (server.argName(i) == "reset") {
+            initialiseLighting();
+            isManualMode = false;
+        } else if (server.argName(i) == "fixtureOnOff") {
+            isManualMode = true;
+            triggerFixtureOnOff(!lightDidTurnOn);
         }
     }
-    handleRoot();
+    server.sendHeader("Location", String("/"), true);
+    server.send (302, "text/plain", "");
 }
 
 void handleNotFound() {
@@ -252,7 +327,7 @@ String runLightController(String state) {
     int sunriseMinute = 58;
     
     int sunsetHour = 19;
-    int sunsetMinute = 10;
+    int sunsetMinute = 06;
 
     int sleepHour = 23;
     int sleepMinute = 0;
@@ -280,36 +355,36 @@ String runLightController(String state) {
     // light controller module
     if (isSunrise) {
         if (state != "sunrise") {
-        Serial.println("Setting sunrise");
-        // turn on the lights      
-        triggerFixtureOnOff(true);
-        // slow ramp up (evening light)
-        handleIR("eveningLight");
-        // decrease colour temperature (cooler)
-        for (int i = 0; i < 3; i++) {
-            handleIR("decreaseColourTemp");
-        }
-        state = "sunrise";
-        lightDidTurnOn = true;
+          Serial.println("Setting sunrise");
+          // turn on the lights      
+          triggerFixtureOnOff(true);
+          // slow ramp up (evening light)
+          handleIR("eveningLight");
+          // decrease colour temperature (cooler)
+          for (int i = 0; i < 3; i++) {
+              handleIR("decreaseColourTemp");
+          }
+          state = "sunrise";
+          lightDidTurnOn = true;
         } else {
-        // test brightness logic      
-        if (currentHour >= 10 && currentMinute >= 10) {
-            float difference = ambientLightWithMaxLightReading - ambientLightWithEveningLightReading;
-            float lowerBoundBrightness = ambientLightWithEveningLightReading + (difference * 0.3);
-            float upperBoundBrightness = ambientLightWithEveningLightReading + (difference * 0.4);
-
-            Serial.print("lower bound:");
-            Serial.println(lowerBoundBrightness);
-
-            Serial.print("upper bound: ");
-            Serial.println(upperBoundBrightness);
-            
-            if (lightReading < lowerBoundBrightness) {
-            handleIR("increaseBrightness");
-            } else if (lightReading > upperBoundBrightness) {
-            handleIR("decreaseBrightness");
-            }
-        }
+          // test brightness logic
+          if (currentHour >= 10 && currentMinute >= 10) {
+              float difference = (ambientLightWithMaxLightReading - ambientLightReading) * (acceptableWattage / 66.0);
+              float lowerBoundBrightness = ambientLightReading + (difference * 0.8);
+              float upperBoundBrightness = ambientLightReading + (difference * 1.2);
+  
+              Serial.print("lower bound:");
+              Serial.println(lowerBoundBrightness);
+  
+              Serial.print("upper bound: ");
+              Serial.println(upperBoundBrightness);
+              
+              if (lightReading < lowerBoundBrightness) {
+                handleIR("increaseBrightness");
+              } else if (lightReading > upperBoundBrightness) {
+                handleIR("decreaseBrightness");
+              }
+          }
         }
     } else if (isSunset) {
 
@@ -351,7 +426,7 @@ void triggerFixtureOnOff(bool didTriggerOn) {
     if (didTriggerOn) {
         while (lightReading <= lightOnCutOff) {
             handleIR("onOff");
-            delay(200);
+            delay(400);
             runLightReading();
         }
         
@@ -360,7 +435,7 @@ void triggerFixtureOnOff(bool didTriggerOn) {
     } else {
         while (lightReading > lightOffCutOff and !didTriggerOn) {
             handleIR("onOff");
-            delay(200);
+            delay(400);
             runLightReading();
         }
         
@@ -373,6 +448,7 @@ void triggerFixtureOnOff(bool didTriggerOn) {
 }
 
 void initialiseLighting() {
+    state = "unset";
     Serial.println("Setting up your light fixture...");
 
     // MAX Light Initialisation
@@ -438,10 +514,10 @@ void runMotionDetector() {
             Serial.println(timeDeltaSinceLightOn);
         }
         
-        if (lightDidTurnOn && ( timeDeltaSinceLightOn >= ( maxSecondsBeforeLightOff * (cycleCount/1000) ) )) {
+        if (lightDidTurnOn && (timeDeltaSinceLightOn >= maxSecondsBeforeLightOff)) {
             Serial.print("It's been ");
             Serial.print(timeDeltaSinceLightOn);
-            Serial.print(" since the light has been turned on with no motion detected, turning off now...");
+            Serial.print(" seconds since the light has been turned on with no motion detected, turning off now...");
             triggerFixtureOnOff(false);
             gracePeriod = definedGracePeriod;
         }
@@ -483,7 +559,7 @@ void setup(void) {
     }
 
     server.on("/", handleRoot);
-    server.on("/lm", handleWebIR);
+    server.on("/lm", handleGUICommands);
 
     server.on("/inline", [](){
         server.send(200, "text/plain", "this works as well");
@@ -508,7 +584,7 @@ void setup(void) {
     pinMode(pirInputPin, INPUT);
     Serial.println("Initialising motion sensor...");
 
-    int pirInitialisingSeconds = 10;
+    int pirInitialisingSeconds = 5;
     for (int i = 0; i <= pirInitialisingSeconds; i++) {
         Serial.print("Duration remaining: ");
         Serial.println(pirInitialisingSeconds-i);
@@ -521,31 +597,32 @@ void setup(void) {
 }
 
 void loop(void) {
-    Serial.println("==========START CYCLE==========");
     
-    // Light readings
-    runLightReading();
-
-    //  if (lightReading < 0.5 && lightDidTurnOn) {
-    //      triggerFixtureOnOff(true);
-    //  }
+    // Light readings runs only every 1 second
+    if (secondsCalibrator >= 1) {
+        runLightReading(); 
+        if (!isManualMode) {
+            // run motion detector service
+            runMotionDetector();
     
-    // run motion detector service
-    runMotionDetector();
-
-    // runReadIR();
-
+            // runReadIR();
+    
+            // Light Manager module
+            state = runLightController(state);
+            Serial.print("Current state: ");
+            Serial.println(state);
+        }
+        secondsCalibrator = 0.0;
+        Serial.println("");
+        Serial.println("==========CYCLE RESTARTS==========");
+        Serial.println("");
+    } else {
+        secondsCalibrator += (cycleCount*1.0)/1000.0;
+    }
+    
     // Web server
     server.handleClient();
-
-    // Light Manager module
-    state = runLightController(state);
-    Serial.print("Current state: ");
-    Serial.println(state);
     
     // Take a chill pill
     delay(cycleCount);
-
-    Serial.println("==========CYCLE RESTARTS==========");
-    Serial.println("");
 }
