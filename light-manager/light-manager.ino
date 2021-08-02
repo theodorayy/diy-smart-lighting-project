@@ -45,6 +45,8 @@ float lightReading;
 float ambientLightReading;
 float ambientLightWithMaxLightReading;
 float ambientLightWithEveningLightReading;
+float lightOnCutOff;
+float lightOffCutOff;
 // =====================================================
 
 // =====================================================
@@ -133,7 +135,7 @@ void handleRoot() {
                       "Hello." \
                     "</p>" \
                     "<p class=\"subtitle\">" \
-                      "Welcome to the Light Manager backend." \
+                      "Welcome to the ER Light Manager." \
                     "</p>" \
                     "</div>" \
                    "</section>" \
@@ -141,7 +143,7 @@ void handleRoot() {
                         "<div class=\"level-item has-text-centered\">"
                             "<div>"
                                 "<p class=\"heading\">Current Light Level</p>"
-                                "<p class=\"title\">" + String(lightReading) + "</p>"
+                                "<p class=\"title\">" + String(lightReading) + "%</p>"
                             "</div>"
                         "</div>"
                         "<div class=\"level-item has-text-centered\">"
@@ -159,28 +161,84 @@ void handleRoot() {
                         "<div class=\"level-item has-text-centered\">"
                             "<div>"
                                 "<p class=\"heading\">Ambient Reading</p>"
-                                "<p class=\"title\">" + String(ambientLightReading) + "</p>"
+                                "<p class=\"title\">" + String(ambientLightReading) + "%</p>"
                             "</div>"
                         "</div>"
                         "<div class=\"level-item has-text-centered\">"
                             "<div>"
-                                "<a class=\"button is-gray is-light\" href=\"/\">Refresh</a>" \
+                                "<a class=\"button is-gray is-light\" href=\"/\">Refresh &#10227;</a>" \
                             "</div>"
                         "</div>"
                     "</nav>"
-                   "<div class=\"columns my-5\">" \
-                    "<div class=\"column is-6 is-offset-3 buttons\">" \
-                      "<a class=\"button is-primary\" href=\"lm?fixtureOnOff=true\">Turn on/off</a>" \
-                      "<a class=\"button is-info\" href=\"lm?auto=true\">Run Auto Mode</a>"\
-                      "<a class=\"button is-light\" href=\"lm?code=33454215\">Reduce brightness</a>" \
-                      "<a class=\"button is-dark\" href=\"lm?code=33441975\">Increase brightness</a>" \
-                      "<a class=\"button is-info is-light\" href=\"lm?code=33472575\">Decrease colour temperature</a>" \
-                      "<a class=\"button is-danger is-light\" href=\"lm?code=33439935\">Increase colour temperature</a>" \
-                      "<a class=\"button is-success is-light\" href=\"lm?code=33448095\">Change colour temperature</a>" \
-                      "<a class=\"button is-warning\" href=\"lm?code=33464415\">Neutral colour</a><br><br><br>" \
-                      "<a class=\"button is-danger\" href=\"lm?reset=true\">Reset</a>"\
-                    "</div>" \
-                   "</div>" \
+                    "<div class=\"columns\">"\
+                        "<div class=\"column is-8 is-offset-2 buttons has-addons is-centered\">"\
+                            "<div class=\"tile is-ancestor\">"\
+                                "<div class=\"tile is-parent\">"\
+                                    "<a href=\"lm?fixtureOnOff=true\" class=\"tile is-child notification has-text-centered is-danger is-light\">"\
+                                        "<p class=\"title\">&#x23FB;</p>"\
+                                        "<p class=\"subtitle\">Turn on/off</p>"\
+                                    "</a>"\
+                                "</div>"\
+                            "</div>"\
+                            "<div class=\"tile is-ancestor\">"\
+                                "<div class=\"tile is-parent\">"\
+                                    "<a href=\"lm?auto=true\" class=\"tile is-child notification has-text-centered is-success is-light\">"\
+                                        "<p class=\"title\">Auto</p>"\
+                                        "<p class=\"subtitle\">Set light controls to automatic.</p>"\
+                                    "</a>"\
+                                "</div>"\
+                            "</div>"\
+                            "<div class=\"tile is-ancestor\">"\
+                                "<div class=\"tile is-parent\">"\
+                                    "<a href=\"lm?code=33454215\" class=\"tile is-child notification has-text-centered has-background-grey-lighter has-text-dark\">"\
+                                        "<p class=\"title\">&#128261;</p>"\
+                                        "<p class=\"subtitle\">Decrease brightness</p>"\
+                                    "</a>"\
+                                "</div>"\
+                                "<div class=\"tile is-parent\">"\
+                                    "<a href=\"lm?code=33441975\" class=\"tile is-child notification has-text-centered is-light\">"\
+                                        "<p class=\"title\">&#128262;</p>"\
+                                        "<p class=\"subtitle\">Increase brightness</p>"\
+                                    "</a>"\
+                                "</div>"\
+                            "</div>"\
+                            "<div class=\"tile is-ancestor\">"\
+                                "<div class=\"tile is-parent\">"\
+                                    "<a href=\"lm?code=33439935\" class=\"tile is-child notification has-text-centered is-light is-warning\">"\
+                                        "<p class=\"title\">2700K</p>"\
+                                        "<p class=\"subtitle\">Warmer, softer light</p>"\
+                                    "</a>"\
+                                "</div>"\
+                                "<div class=\"tile is-parent\">"\
+                                    "<a href=\"lm?code=33472575\" class=\"tile is-child notification has-text-centered is-light is-info\">"\
+                                        "<p class=\"title\">6500K</p>"\
+                                        "<p class=\"subtitle\">Cooler, active light</p>"\
+                                    "</a>"\
+                                "</div>"\
+                            "</div>"\
+                            "<div class=\"tile is-ancestor\">"\
+                                "<div class=\"tile is-parent\">"\
+                                    "<a href=\"lm?code=33448095\" class=\"tile is-child notification has-text-centered is-light is-success\">"\
+                                        "<p class=\"title\">&#128260;</p>"\
+                                        "<p class=\"subtitle\">Change colour temperature</p>"\
+                                    "</a>"\
+                                "</div>"\
+                                "<div class=\"tile is-parent\">"\
+                                    "<a href=\"lm?code=33464415\" class=\"tile is-child notification has-text-centered is-light is-warning\">"\
+                                        "<p class=\"title\">&#128161;</p>"\
+                                        "<p class=\"subtitle\">Neutral lighting</p>"\
+                                    "</a>"\
+                                "</div>"\
+                            "</div>"\
+                            "<div class=\"tile is-ancestor\">"\
+                                "<div class=\"tile is-parent\">"\
+                                    "<a href=\"lm?reset=true\" class=\"tile is-child notification has-text-centered is-danger\">"\
+                                        "<p class=\"title\">RESET</p>"\
+                                    "</a>"\
+                                "</div>"\
+                            "</div>"\
+                        "</div>"\
+                    "</div>"\
                 "</body>" \
               "</html>";
 
@@ -202,7 +260,7 @@ void handleGUICommands() {
             isManualMode = false;
         } else if (server.argName(i) == "fixtureOnOff") {
             isManualMode = true;
-            triggerFixtureOnOff(!lightDidTurnOn);
+            triggerFixtureOn(!lightDidTurnOn);
         }
     }
     server.sendHeader("Location", String("/"), true);
@@ -357,7 +415,7 @@ String runLightController(String state) {
         if (state != "sunrise") {
           Serial.println("Setting sunrise");
           // turn on the lights      
-          triggerFixtureOnOff(true);
+          triggerFixtureOn(true);
           // slow ramp up (evening light)
           handleIR("eveningLight");
           // decrease colour temperature (cooler)
@@ -408,16 +466,16 @@ String runLightController(String state) {
 
         if (state != "sleep") {
         Serial.println("Setting sleep");
-        triggerFixtureOnOff(false);
+        triggerFixtureOn(false);
         state = "sleep";
         }
     }
     return state;
 }
 
-void triggerFixtureOnOff(bool didTriggerOn) {
-    float lightOnCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.015);
-    float lightOffCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.2);
+void triggerFixtureOn(bool didTriggerOn) {
+
+    Serial.println("");
     Serial.print("Light On Cut Off: ");
     Serial.println(lightOnCutOff);
     Serial.print("Light Off Cut Off: ");
@@ -468,9 +526,17 @@ void initialiseLighting() {
     
     // turn off to confirm lighting is OFF and set lightDidTurnOn state to FALSE
     handleIR("onOff");
-    lightDidTurnOn = false;
     delay(1000);
     ambientLightReading = analogRead(lightSensorPin) * 0.0976;
+
+    while (ambientLightReading >= (ambientLightWithEveningLightReading * 0.9)) {
+        handleIR("onOff");
+        delay(1000);
+        ambientLightReading = analogRead(lightSensorPin) * 0.0976;
+    }
+
+    lightOnCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.015);
+    lightOffCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.2);
 
     Serial.print("Ambient light: ");
     Serial.println(ambientLightReading);
@@ -499,7 +565,7 @@ void runMotionDetector() {
         Serial.println(timeDeltaSinceLightOn);
         
         if (!lightDidTurnOn && gracePeriod == 0) {
-            triggerFixtureOnOff(true);
+            triggerFixtureOn(true);
         } else if (!lightDidTurnOn && gracePeriod > 0) {
             gracePeriod--;
         }
@@ -518,7 +584,7 @@ void runMotionDetector() {
             Serial.print("It's been ");
             Serial.print(timeDeltaSinceLightOn);
             Serial.print(" seconds since the light has been turned on with no motion detected, turning off now...");
-            triggerFixtureOnOff(false);
+            triggerFixtureOn(false);
             gracePeriod = definedGracePeriod;
         }
     }
