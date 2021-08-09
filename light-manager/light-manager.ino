@@ -48,6 +48,7 @@ float ambientLightWithEveningLightReading;
 float lightOnCutOff;
 float lightOffCutOff;
 float siriBrightnessRequest;
+int currentColourTemp;
 // =====================================================
 
 // =====================================================
@@ -282,6 +283,14 @@ void handleSiriCommands() {
             runLightReading();
             Serial.println("Handling via Siri now...");
             handleIR(server.arg(i));
+        } else if (server.argName(i) == "setAuto") {
+            if (server.arg(i) == "false") {
+                isManualMode = true;
+            } else {
+                isManualMode = false;
+            }
+            runLightReading();
+            Serial.println("Handling auto mode settings via Siri now...");
         } else if (server.argName(i) == "desiredBrightness") {
             isManualMode = true;
             runLightReading();
@@ -290,7 +299,7 @@ void handleSiriCommands() {
             handleBrightness(server.arg(i));
         } else if (server.argName(i) == "setColourTemp") {
             isManualMode = true;
-            Serial.println("Handling brightness via Siri now...");
+            Serial.println("Handling colour temperature via Siri now...");
             handleColourTemp(server.arg(i));
         } else if (server.argName(i) == "getStatus") {
             runLightReading();
@@ -298,15 +307,22 @@ void handleSiriCommands() {
             // power
             // currentBrightness
             siriRequest = server.arg(i);
+            String isManualString;
+            if (isManualMode) {
+                isManualString = "true";
+            } else {
+                isManualString = "false";
+            }
             if (server.arg(i) == "power") {
                 stateValue = lightDidTurnOn;
-                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"\": \"" + isManualMode + "\"\"state\": " + stateValue + "}";
+                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"is_manual\": \"" + isManualString + "\"\"state\": " + stateValue + "}";
             } else if (server.arg(i) == "currentBrightness") {
                 stateValue = lightReading;
-                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"\": \"" + isManualMode + "\", \"state\": " + stateValue + "}";
+                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"is_manual\": \"" + isManualString + "\", \"state\": " + stateValue + "}";
             } else if (server.arg(i) == "continuousPoll") {
                 stateValue = lightDidTurnOn;
-                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"\": \"" + isManualMode + "\", \"state\": " + stateValue + ", \"brightness\": " + lightReading + "}";
+                float colourTempInKelvin = 1000000.0 / currentColourTemp;
+                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"is_manual\": \"" + isManualString + "\", \"state\": " + stateValue + ", \"brightness\": " + lightReading + ", \"colour_temp_in_kelvin\":" + colourTempInKelvin +"}";
             }
         }
     }
@@ -382,23 +398,25 @@ void handleColourTemp(String stringTemp) {
     //set colour neutral first
     handleIR("eveningLight");
 
-    int temp = stringTemp.toInt();
+    int colourTemp = stringTemp.toInt();
     Serial.print("Temp is: ");
     Serial.println(stringTemp);
 
-    if (temp < 230) {
+    if (colourTemp < 230) {
         smoothColourTempModifier("decrease");
         smoothColourTempModifier("decrease");
-    } else if (temp >= 230 && temp < 320) {
+    } else if (colourTemp >= 230 && colourTemp < 320) {
         smoothColourTempModifier("decrease");
-    } else if (temp >= 320 && temp < 410) {
+    } else if (colourTemp >= 320 && colourTemp < 410) {
         smoothColourTempModifier("increase");
-    } else if (temp >= 410) {
+    } else if (colourTemp >= 410) {
         smoothColourTempModifier("increase");
         smoothColourTempModifier("increase");
     }
     runLightReading();
     handleBrightness(String(siriBrightnessRequest,0));
+    
+    currentColourTemp = colourTemp;
 }
 
 void smoothColourTempModifier(String incrementDecrement) {
@@ -520,6 +538,7 @@ String runLightController(String state) {
     
     // light controller module
     if (isSunrise) {
+        currentColourTemp = 180;
         if (state != "sunrise") {
           Serial.println("Setting sunrise");
           // turn on the lights      
@@ -553,7 +572,7 @@ String runLightController(String state) {
           }
         }
     } else if (isSunset) {
-
+        currentColourTemp = 400;
         if (state != "sunset") {
             Serial.println("Setting sunset");
             // evening light       
@@ -571,7 +590,6 @@ String runLightController(String state) {
         }
         
     } else if (isSleep) {
-
         if (state != "sleep") {
         Serial.println("Setting sleep");
         triggerFixtureOn(false);
