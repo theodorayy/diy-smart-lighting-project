@@ -281,6 +281,11 @@ void handleSiriCommands() {
             runLightReading();
             Serial.println("Handling via Siri now...");
             handleIR(server.arg(i));
+        } else if (server.argName(i) == "desiredBrightness") {
+            isManualMode = true;
+            runLightReading();
+            Serial.println("Handling brightness via Siri now...");
+            handleBrightness(server.arg(i));
         } else if (server.argName(i) == "getStatus") {
             runLightReading();
             // STATUS LIST
@@ -346,6 +351,19 @@ void handleIR(String wordCommand) {
     } else if (wordCommand == "setAuto") {
         isManualMode = false;
         Serial.println("Set to auto mode.");
+    }
+}
+
+void handleBrightness(String desiredLevel) {
+    int iterator = (desiredLevel.toInt() - lightReading) / 10;
+    int maxIterator = abs(iterator);
+
+    for (int i = 0; i < maxIterator; i++) {
+          if (iterator < 0) {
+              transmitIR("33454215");
+          } else if (iterator > 0) {
+              transmitIR("33441975");
+          }
     }
 }
 
