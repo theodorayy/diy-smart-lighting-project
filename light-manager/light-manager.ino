@@ -47,6 +47,7 @@ float ambientLightWithMaxLightReading;
 float ambientLightWithEveningLightReading;
 float lightOnCutOff;
 float lightOffCutOff;
+float siriBrightnessRequest;
 // =====================================================
 
 // =====================================================
@@ -284,8 +285,13 @@ void handleSiriCommands() {
         } else if (server.argName(i) == "desiredBrightness") {
             isManualMode = true;
             runLightReading();
+            siriBrightnessRequest = server.arg(i).toInt();
             Serial.println("Handling brightness via Siri now...");
             handleBrightness(server.arg(i));
+        } else if (server.argName(i) == "setColourTemp") {
+            isManualMode = true;
+            Serial.println("Handling brightness via Siri now...");
+            handleColourTemp(server.arg(i));
         } else if (server.argName(i) == "getStatus") {
             runLightReading();
             // STATUS LIST
@@ -355,16 +361,50 @@ void handleIR(String wordCommand) {
 }
 
 void handleBrightness(String desiredLevel) {
-    int iterator = (desiredLevel.toInt() - lightReading) / 10;
-    int maxIterator = abs(iterator);
 
+    int request = desiredLevel.toInt();
+
+    int iterator = (request - lightReading) / 10;
+    int maxIterator = abs(iterator);
+  
     for (int i = 0; i < maxIterator; i++) {
           if (iterator < 0) {
-              transmitIR("33454215");
+              handleIR("decreaseBrightness");
           } else if (iterator > 0) {
-              transmitIR("33441975");
+              handleIR("increaseBrightness");
           }
     }
+    
+    
+}
+
+void handleColourTemp(String stringTemp) {
+    //set colour neutral first
+    handleIR("eveningLight");
+
+    int temp = stringTemp.toInt();
+    Serial.print("Temp is: ");
+    Serial.println(stringTemp);
+
+    if (temp < 230) {
+        smoothColourTempModifier("decrease");
+        smoothColourTempModifier("decrease");
+    } else if (temp >= 230 && temp < 320) {
+        smoothColourTempModifier("decrease");
+    } else if (temp >= 320 && temp < 410) {
+        smoothColourTempModifier("increase");
+    } else if (temp >= 410) {
+        smoothColourTempModifier("increase");
+        smoothColourTempModifier("increase");
+    }
+    runLightReading();
+    handleBrightness(String(siriBrightnessRequest,0));
+}
+
+void smoothColourTempModifier(String incrementDecrement) {
+    handleIR(incrementDecrement + "ColourTemp");
+//    handleIR(incrementDecrement + "Brightness");
+//    delay(200);
 }
 
 void transmitIR(String command) {
