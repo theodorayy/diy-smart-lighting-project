@@ -75,6 +75,10 @@ decode_results results;
 
 // =====================================================
 // WIFI Setup
+IPAddress ip(192, 168, 1, 218);
+IPAddress dns(192, 168, 1, 1);
+IPAddress gateway(192, 168, 1, 1);
+IPAddress subnet(255, 255, 255, 0);
 const char* ssid = "Pretzel";
 const char* password = "2609199265";
 // =====================================================
@@ -142,7 +146,13 @@ void handleRoot() {
                    "<nav class=\"level my-5\">"
                         "<div class=\"level-item has-text-centered\">"
                             "<div>"
-                                "<p class=\"heading\">Current Light Level</p>"
+                                "<p class=\"heading\">Initialised Ambient Reading</p>"
+                                "<p class=\"title\">" + String(ambientLightReading) + "%</p>"
+                            "</div>"
+                        "</div>"
+                        "<div class=\"level-item has-text-centered\">"
+                            "<div>"
+                                "<p class=\"heading\">Current Ambient Light</p>"
                                 "<p class=\"title\">" + String(lightReading) + "%</p>"
                             "</div>"
                         "</div>"
@@ -156,12 +166,6 @@ void handleRoot() {
                             "<div>"
                                 "<p class=\"heading\">Auto Mode?</p>"
                                 "<p class=\"title " + manualModeTextColour + "\">" + manualText  + "</p>"
-                            "</div>"
-                        "</div>"
-                        "<div class=\"level-item has-text-centered\">"
-                            "<div>"
-                                "<p class=\"heading\">Ambient Reading</p>"
-                                "<p class=\"title\">" + String(ambientLightReading) + "%</p>"
                             "</div>"
                         "</div>"
                         "<div class=\"level-item has-text-centered\">"
@@ -264,9 +268,30 @@ void handleGUICommands() {
         }
     }
     server.sendHeader("Location", String("/"), true);
-    server.send (302, "text/plain", "");
+    server.send(302, "text/plain", "");
 }
 
+void handleSiriCommands() {
+    runLightReading();
+    String jsonMessage;
+    for (uint8_t i = 0; i < server.args(); i++) {
+        if (server.argName(i) == "setControl") {
+            isManualMode = true;
+            handleIR(server.arg(i));
+        } else if (server.argName(i) == "getStatus") {
+            // STATUS LIST
+            // power
+            // currentBrightness
+            if (server.arg(i) == "power") {
+                jsonMessage = lightDidTurnOn;
+            } else if (server.arg(i) == "currentBrightness") {
+                jsonMessage = lightReading;
+            }
+        }
+    }
+    server.send(200, "application/json", "{\"fixture\": \"light\", \"state\":" + jsonMessage + "}");
+}
+       
 void handleNotFound() {
     String message = "File Not Found\n\n";
     message += "URI: ";
@@ -282,8 +307,18 @@ void handleNotFound() {
 }
 
 void handleIR(String wordCommand) {
+    Serial.println(wordCommand);
     if (wordCommand == "onOff") {
+        // always needed by triggerFixtureOn()
         transmitIR("33456255");
+    } else if (wordCommand == "on") {
+        Serial.println(wordCommand);
+        Serial.println("turning on");
+        triggerFixtureOn(true);
+    } else if (wordCommand == "off") {
+        Serial.println(wordCommand);
+        Serial.println("turning off");
+        triggerFixtureOn(false);
     } else if (wordCommand == "decreaseBrightness") {
         transmitIR("33454215");
     } else if (wordCommand == "increaseBrightness") {
@@ -296,6 +331,11 @@ void handleIR(String wordCommand) {
         transmitIR("33448095");
     } else if (wordCommand == "eveningLight") {
         transmitIR("33464415");
+    } else if (wordCommand == "setMood") {
+        Serial.println("Setting mood");
+    } else if (wordCommand == "setAuto") {
+        isManualMode = false;
+        Serial.println("Set to auto mode.");
     }
 }
 
@@ -447,19 +487,19 @@ String runLightController(String state) {
     } else if (isSunset) {
 
         if (state != "sunset") {
-        Serial.println("Setting sunset");
-        // evening light       
-        handleIR("eveningLight");
-        // increase colour temp
-        for (int i = 0; i < 9; i++) {
-            handleIR("increaseColourTemp");
-        }
-        // reduce brightness
-        for (int i = 0; i < 9; i++) {
-            handleIR("decreaseBrightness");
-        }
-        state = "sunset";
-        lightDidTurnOn = true;
+            Serial.println("Setting sunset");
+            // evening light       
+            handleIR("eveningLight");
+            // increase colour temp
+            for (int i = 0; i < 9; i++) {
+                handleIR("increaseColourTemp");
+            }
+            // reduce brightness
+            for (int i = 0; i < 9; i++) {
+                handleIR("decreaseBrightness");
+            }
+            state = "sunset";
+            lightDidTurnOn = true;
         }
         
     } else if (isSleep) {
@@ -606,6 +646,7 @@ void setup(void) {
     irrecv.enableIRIn();
 
     Serial.begin(115200);
+    WiFi.config(ip, dns, gateway, subnet);
     WiFi.begin(ssid, password);
     Serial.println("");
 
@@ -626,6 +667,7 @@ void setup(void) {
 
     server.on("/", handleRoot);
     server.on("/lm", handleGUICommands);
+    server.on("/siri", handleSiriCommands);
 
     server.on("/inline", [](){
         server.send(200, "text/plain", "this works as well");
