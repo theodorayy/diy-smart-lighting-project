@@ -272,24 +272,34 @@ void handleGUICommands() {
 }
 
 void handleSiriCommands() {
-    runLightReading();
     String jsonMessage;
+    String stateValue;
+    String siriRequest;
     for (uint8_t i = 0; i < server.args(); i++) {
         if (server.argName(i) == "setControl") {
             isManualMode = true;
+            runLightReading();
+            Serial.println("Handling via Siri now...");
             handleIR(server.arg(i));
         } else if (server.argName(i) == "getStatus") {
+            runLightReading();
             // STATUS LIST
             // power
             // currentBrightness
+            siriRequest = server.arg(i);
             if (server.arg(i) == "power") {
-                jsonMessage = lightDidTurnOn;
+                stateValue = lightDidTurnOn;
+                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"\": \"" + isManualMode + "\"\"state\": " + stateValue + "}";
             } else if (server.arg(i) == "currentBrightness") {
-                jsonMessage = lightReading;
+                stateValue = lightReading;
+                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"\": \"" + isManualMode + "\", \"state\": " + stateValue + "}";
+            } else if (server.arg(i) == "continuousPoll") {
+                stateValue = lightDidTurnOn;
+                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"\": \"" + isManualMode + "\", \"state\": " + stateValue + ", \"brightness\": " + lightReading + "}";
             }
         }
     }
-    server.send(200, "application/json", "{\"fixture\": \"light\", \"state\":" + jsonMessage + "}");
+    server.send(200, "application/json", jsonMessage);
 }
        
 void handleNotFound() {
