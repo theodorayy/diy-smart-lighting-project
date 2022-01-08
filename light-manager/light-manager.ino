@@ -35,6 +35,7 @@ int cycleCount = 1; // Loop delay
 float secondsCalibrator = 0;
 bool isManualMode = false;
 float acceptableWattage = 24.0; // This is the maximum wattage you allow the automatic settings to fall back to (in Watts)
+float lightMaximumWattage = 24.0;
 // =====================================================
 
 
@@ -43,8 +44,8 @@ float acceptableWattage = 24.0; // This is the maximum wattage you allow the aut
 #define lightSensorPin A0 //Ambient light sensor reading
 float lightReading;
 float ambientLightReading;
-float ambientLightWithMaxLightReading;
-float ambientLightWithEveningLightReading;
+float ambientWithMaxLightReading;
+float ambientWithLowLightReading;
 float lightOnCutOff;
 float lightOffCutOff;
 float siriBrightnessRequest;
@@ -61,11 +62,11 @@ IRsend irsend(4);  // An IR LED is controlled by GPIO pin 4 (D2)
 // PIR Motion Sensor
 int pirInputPin = D7;
 int pirValue;
-int timeDeltaSinceLightOn = 0;
-int maxSecondsBeforeLightOff = 20;
+int timeDeltaSinceLightOn = 0; // how many seconds elapsed since last motion detected and lights are on
+int maxSecondsBeforeLightOff = 120;
 int gracePeriod = 0;
 
-int definedGracePeriod = 1; // light ramp up timing
+int definedGracePeriod = 0; // light ramp up timing
 // =====================================================
 
 // =====================================================
@@ -168,6 +169,12 @@ void handleRoot() {
                             "<div>"
                                 "<p class=\"heading\">Auto Mode?</p>"
                                 "<p class=\"title " + manualModeTextColour + "\">" + manualText  + "</p>"
+                            "</div>"
+                        "</div>"
+                        "<div class=\"level-item has-text-centered\">"
+                            "<div>"
+                                "<p class=\"heading\">Last motion detected</p>"
+                                "<p class=\"title\">" + String(timeDeltaSinceLightOn) + "s ago</p>"
                             "</div>"
                         "</div>"
                         "<div class=\"level-item has-text-centered\">"
@@ -322,7 +329,7 @@ void handleSiriCommands() {
             } else if (server.arg(i) == "continuousPoll") {
                 stateValue = lightDidTurnOn;
                 float colourTempInKelvin = 1000000.0 / currentColourTemp;
-                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"is_manual\": \"" + isManualString + "\", \"state\": " + stateValue + ", \"brightness\": " + lightReading + ", \"colour_temp_in_kelvin\":" + colourTempInKelvin +"}";
+                jsonMessage = "{\"fixture\": \"light\", \"request\": \"" + siriRequest + "\", \"is_manual\": \"" + isManualString + "\", \"state\": " + stateValue + ", \"last_motion_detected_seconds\": " + timeDeltaSinceLightOn + ", \"brightness\": " + lightReading + ", \"colour_temp_in_kelvin\":" + colourTempInKelvin +"}";
             }
         }
     }
@@ -554,7 +561,7 @@ String runLightController(String state) {
         } else {
           // test brightness logic
           if (currentHour >= 10 && currentMinute >= 10) {
-              float difference = (ambientLightWithMaxLightReading - ambientLightReading) * (acceptableWattage / 66.0);
+              float difference = (ambientWithMaxLightReading - ambientLightReading) * (acceptableWattage / lightMaximumWattage);
               float lowerBoundBrightness = ambientLightReading + (difference * 0.8);
               float upperBoundBrightness = ambientLightReading + (difference * 1.2);
   
@@ -637,41 +644,43 @@ void initialiseLighting() {
 
     // MAX Light Initialisation
     handleIR("eveningLight");
-    handleIR("onOff");
+    handleIR("onOff"); // turns off
     delay(500);
     handleIR("changeColourTemp");
+    delay(2500);
+    ambientWithMaxLightReading = analogRead(lightSensorPin) * 0.0976;
+    delay(500);
+    // Turn on and set to lowest brightness
+    for (int i = 0; i < 10; i++) {
+        handleIR("decreaseBrightness");
+    }
     delay(1000);
-    ambientLightWithMaxLightReading = analogRead(lightSensorPin) * 0.0976;
-    handleIR("onOff");
-    delay(1000);
-
-    // change to evening light to initialise ON 
-    handleIR("eveningLight");
-    delay(1000);
-    ambientLightWithEveningLightReading = analogRead(lightSensorPin) * 0.0976;
+    ambientWithLowLightReading = analogRead(lightSensorPin) * 0.0976;
+    delay(2000);
     
     // turn off to confirm lighting is OFF and set lightDidTurnOn state to FALSE
     handleIR("onOff");
     delay(1000);
     ambientLightReading = analogRead(lightSensorPin) * 0.0976;
 
-    while (ambientLightReading >= (ambientLightWithEveningLightReading * 0.9)) {
+    while (ambientLightReading >= (ambientWithLowLightReading * 0.9)) {
         handleIR("onOff");
         delay(1000);
         ambientLightReading = analogRead(lightSensorPin) * 0.0976;
     }
+    // since we can't keep track of states,
+    // use a cutoff with a buffer range for the ambient light when the fixture is turned off
+    lightOnCutOff = ambientLightReading + ((ambientWithLowLightReading - ambientLightReading) * 0.015);
+    lightOffCutOff = ambientLightReading + ((ambientWithLowLightReading - ambientLightReading) * 0.2);
 
-    lightOnCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.015);
-    lightOffCutOff = ambientLightReading + ((ambientLightWithEveningLightReading - ambientLightReading) * 0.2);
-
-    Serial.print("Ambient light: ");
+    Serial.print("Ambient light with fixture off: ");
     Serial.println(ambientLightReading);
 
-    Serial.print("Ambient light with evening light: ");
-    Serial.println(ambientLightWithEveningLightReading);
+    Serial.print("Ambient light with lowest brightness: ");
+    Serial.println(ambientWithLowLightReading);
 
     Serial.print("Ambient light with full brightness: ");
-    Serial.println(ambientLightWithMaxLightReading);
+    Serial.println(ambientWithMaxLightReading);
     Serial.println("Light fixture is set up!");
 }
 
