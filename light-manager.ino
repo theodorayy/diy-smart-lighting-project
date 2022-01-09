@@ -62,11 +62,19 @@ IRsend irsend(4);  // An IR LED is controlled by GPIO pin 4 (D2)
 // PIR Motion Sensor
 int pirInputPin = D7;
 int pirValue;
+int pirInitialisingSeconds = 30; // how many seconds to initialise PIR
+
+int pirTriggerCycle = 6; // PIR has this 'reset' period after making a reading... (so let program trigger every pirTriggerCycle seconds)
+int timeElapsedSinceTriggerCycle = pirTriggerCycle;
+
 int timeDeltaSinceLightOn = 0; // how many seconds elapsed since last motion detected and lights are on
 int maxSecondsBeforeLightOff = 120;
-int gracePeriod = 0;
 
+// Grace periods
+int gracePeriod = 0;
 int definedGracePeriod = 0; // light ramp up timing
+
+bool didMotionTriggerLightsOff = false;
 // =====================================================
 
 // =====================================================
@@ -267,6 +275,8 @@ void handleGUICommands() {
             Serial.println("Set to manual mode.");
         } else if (server.argName(i) == "auto") {
             isManualMode = false;
+            didMotionTriggerLightsOff = false;
+            timeElapsedSinceTriggerCycle = pirTriggerCycle;
             Serial.println("Set to auto mode.");
         } else if (server.argName(i) == "reset") {
             initialiseLighting();
@@ -295,6 +305,8 @@ void handleSiriCommands() {
                 isManualMode = true;
             } else {
                 isManualMode = false;
+                didMotionTriggerLightsOff = false;
+                timeElapsedSinceTriggerCycle = pirTriggerCycle;
             }
             runLightReading();
             Serial.println("Handling auto mode settings via Siri now...");
@@ -518,7 +530,7 @@ String runLightController(String state) {
     int sunriseMinute = 58;
     
     int sunsetHour = 19;
-    int sunsetMinute = 06;
+    int sunsetMinute = 6;
 
     int sleepHour = 23;
     int sleepMinute = 0;
@@ -598,9 +610,9 @@ String runLightController(String state) {
         
     } else if (isSleep) {
         if (state != "sleep") {
-        Serial.println("Setting sleep");
-        triggerFixtureOn(false);
-        state = "sleep";
+            Serial.println("Setting sleep");
+            triggerFixtureOn(false);
+            state = "sleep";
         }
     }
     return state;
@@ -640,6 +652,7 @@ void triggerFixtureOn(bool didTriggerOn) {
 
 void initialiseLighting() {
     state = "unset";
+    didMotionTriggerLightsOff = false;
     Serial.println("Setting up your light fixture...");
 
     // MAX Light Initialisation
@@ -701,15 +714,16 @@ void runMotionDetector() {
         
         if (!lightDidTurnOn && gracePeriod == 0) {
             triggerFixtureOn(true);
+            didMotionTriggerLightsOff = false;
         } else if (!lightDidTurnOn && gracePeriod > 0) {
             gracePeriod--;
         }
     } else {
         Serial.println("No motion detected");
         
-        //  counter if no motion detected
+        //  set a counter if no motion detected
         if (lightDidTurnOn) {
-            timeDeltaSinceLightOn += 1;
+            timeDeltaSinceLightOn += pirTriggerCycle;
             
             Serial.print("Motion not detected! Time Delta Since Lights On: ");
             Serial.println(timeDeltaSinceLightOn);
@@ -720,6 +734,7 @@ void runMotionDetector() {
             Serial.print(timeDeltaSinceLightOn);
             Serial.print(" seconds since the light has been turned on with no motion detected, turning off now...");
             triggerFixtureOn(false);
+            didMotionTriggerLightsOff = true;
             gracePeriod = definedGracePeriod;
         }
     }
@@ -782,12 +797,18 @@ void setup(void) {
     // GMT 0 = 0
     timeClient.setTimeOffset(28800);
 
+    // Do a little dance to demonstrate it's working ;)
+    handleIR("eveningLight");
+    delay(50);
+    handleIR("changeColourTemp");
+    delay(50);
+    handleIR("eveningLight");
+
     // Sensor initialisation
     pinMode(lightSensorPin, INPUT);
     pinMode(pirInputPin, INPUT);
     Serial.println("Initialising motion sensor...");
 
-    int pirInitialisingSeconds = 5;
     for (int i = 0; i <= pirInitialisingSeconds; i++) {
         Serial.print("Duration remaining: ");
         Serial.println(pirInitialisingSeconds-i);
@@ -801,14 +822,21 @@ void setup(void) {
 
 void loop(void) {
     
-    // Light readings runs only every 1 second
+    // Light readings run only every 1 second
     if (secondsCalibrator >= 1) {
         runLightReading(); 
         if (!isManualMode) {
             // run motion detector service
-            runMotionDetector();
-    
-            // runReadIR();
+            if (state != "sleep") {
+                if (!didMotionTriggerLightsOff && timeElapsedSinceTriggerCycle > 0) {
+                    timeElapsedSinceTriggerCycle--;
+                    Serial.println("Time elapsed since trigger cycle:");
+                    Serial.println(timeElapsedSinceTriggerCycle);
+                } else {
+                    runMotionDetector();
+                    timeElapsedSinceTriggerCycle = pirTriggerCycle;
+                }
+            }
     
             // Light Manager module
             state = runLightController(state);
